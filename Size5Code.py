@@ -1,0 +1,164 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jun 10 18:07:15 2021
+
+@author: scannon
+"""
+
+import networkx as nx
+import matplotlib.pyplot as plt
+import numpy as np
+import itertools as it
+from itertools import permutations
+import pickle
+
+# Set number of people on each side
+n = 5
+
+#set range restrictions
+k1 = 3
+k2 = 3
+
+#Make list of preference lists 
+AllAPrefLists = []
+AllBPrefLists = []
+
+#A function that takes in a matching, preference lists for the a side, preference lists for the b side, and determines whether the matching is stable
+#Doing this faster than just check all possible pairs to see if they are unstable would be a way to make the code faster
+def isStable(matching, ap, bp):
+    # for all unmatched pairs
+    for i in range(n):
+        # check all j in B to see if are part of an unstable pair with i in A
+        unstable = [j for j in range(n) if ap[i].index(j) < ap[i].index(matching[i]) and bp[j].index(i) < bp[j].index(matching.index(j))]
+        if len(unstable) > 0:
+            return False                                                                                
+    #If have found no unstable pairs
+    return True 
+
+def checkRange(prefs, k):
+    minpos = [n-1,n-1,n-1,n-1,n-1]
+    maxpos = [0,0,0,0,0]
+    for i in range(n):
+        for j in range(n):
+            val = prefs[i][j]
+            if minpos[val] > j:
+                minpos[val] = j
+            if maxpos[val] < j:
+                maxpos[val] = j
+    add = True           
+    for i in range(n):
+        if maxpos[i]-minpos[i] > k - 1:
+            add = False
+    if add == True:
+        return True
+
+# Find all possible preference lists
+for j1 in list(permutations(range(n))):
+    print(j1)
+    for j2 in list(permutations(range(n))):
+        for j3 in list(permutations(range(n))):
+            for j4 in list(permutations(range(n))):
+                #A sinle preference list for one side is a list of four permutations of {0,1,2,3}, 
+                # The first tuple(permutation) is the preferences for person 0, always (0,1,2,3) to reduce symmetries
+                # (e.g., whoever a_0 prefers first we call b_0, whoever a_0's second choice is we name b_1, etc.)
+                # The second tuple(permutation) is the preferences of person 1, etc. 
+                Aprefs = [(0,1,2,3,4), j1, j2, j3,j4] 
+                if checkRange(Aprefs, k1):
+                    AllAPrefLists.append(Aprefs)
+                # Person b_0 may have person a_0 in any position in theire preference list
+                # Assume, to reduce symetries, the other three people are in order 1,2,3
+                # don't consider case where b_0's first choice is a_0: then b_0 will be paired with a_0 in every stable matching, 
+                # and thus this is actulaly just a size 3 problem and not interesting here
+                Bprefs1 = [(1,0,2,3,4), j1, j2, j3, j4] 
+                Bprefs2 = [(1,2,0,3,4), j1, j2, j3, j4] 
+                Bprefs3 = [(1,2,3,0,4), j1, j2, j3, j4] 
+                Bprefs4 = [(1,2,3,4,0), j1, j2, j3, j4]
+                if checkRange(Bprefs1, k2):
+                    AllBPrefLists.append(Bprefs1)
+                if checkRange(Bprefs2, k2):
+                    AllBPrefLists.append(Bprefs2)
+                if checkRange(Bprefs3, k2):
+                    AllBPrefLists.append(Bprefs3)
+                if checkRange(Bprefs4, k2):
+                    AllBPrefLists.append(Bprefs4)
+                
+           
+# See how many you have found
+print("Number of A preference lists: ", len(AllAPrefLists))
+
+# See how many you have found
+print("Number of B preference lists: ", len(AllBPrefLists))
+
+#(Even just to get to this point, the code needed to run most of the night)
+#I've stored AllAPrefLists and AllBPrefLists in files called 'Size5_range33_AllAPrefLists' 
+# and 'Size5_range33_AllBPrefLists in case you want to use them as a starting point
+# You can open them using the same pickle commands as for the lists of preference lists
+
+
+#This code below hasn't run all the way through yet (would take about 67 days!)
+# So, in particular, there could still be bugs I haven't found yet, use with caution!
+#NumMatchings[i] is the number of preference lists that have i stable matchings
+NumMatchings = []
+
+#Find the preference lists that have various numbers of stable matchings
+ListSortedByNum = []
+counter = 0
+# Keeping track of this loop
+print("There should be ", len(AllAPrefLists), " loops that happen now:")
+for Aprefs in AllAPrefLists:
+    print(counter)
+    counter = counter + 1
+    for Bprefs in AllBPrefLists:
+        num = 0
+        #A matching is just a permutation of {0,1,2,3} saying who the A people are paired with
+        # Permutation (2,1,3,0) means a_0 is paired with b_2, a_1 is paired with b_1, 
+        # a_2 is paired with b_3, and a_3 is paired with b_0
+        # Find all stable matchings with these preference lists
+        possibilities = [x for x in permutations(range(n)) if x[0] == 0 or x[0] == 1 or x[0] == 2]
+        for match in possibilities:
+            if isStable(match, Aprefs, Bprefs):
+                num = num + 1
+                #%print(num)       
+        while num > len(NumMatchings) - 1:
+            NumMatchings.append(0)
+            ListSortedByNum.append([])
+        if num >=3:
+            #Don't waste space saving them unless there are at least 3 stable matchings
+            ListSortedByNum[num].append([Aprefs, Bprefs])
+            NumMatchings[num] = NumMatchings[num] + 1
+
+print("Number of preference lists with various numbers of stable matchings: ")
+print(NumMatchings)
+
+#Pickle the preference lists for later use
+file2 = open('Size5_2matchings_range33', 'wb')
+pickle.dump(ListSortedByNum[2], file2)
+file2.close()
+file3 = open('Size5_3matchings_range33', 'wb')
+pickle.dump(ListSortedByNum[3], file3)
+file3.close()
+file4 = open('Size5_4matchings_range33', 'wb')
+pickle.dump(ListSortedByNum[4], file4)
+file4.close()
+file5 = open('Size5_5matchings_range33', 'wb')
+pickle.dump(ListSortedByNum[5], file5)
+file5.close()
+file6 = open('Size5_6matchings_range33', 'wb')
+pickle.dump(ListSortedByNum[6], file6)
+file6.close()
+file7 = open('Size5_7matchings_range33', 'wb')
+pickle.dump(ListSortedByNum[7], file7)
+file7.close()
+
+#If there end up being more                 
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                
